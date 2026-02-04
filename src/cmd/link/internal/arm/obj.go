@@ -93,6 +93,7 @@ func archinit(ctxt *ld.Link) {
 
 	case objabi.Hlinux, /* arm elf */
 		objabi.Hfreebsd,
+		objabi.Hfreya,
 		objabi.Hnetbsd,
 		objabi.Hopenbsd:
 		*ld.FlagD = false

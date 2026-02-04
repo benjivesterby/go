@@ -11,6 +11,7 @@ const IsAndroid = 0
 const IsDarwin = 0
 const IsDragonfly = 0
 const IsFreebsd = 0
+const IsFreya = 0
 const IsHurd = 1
 const IsIllumos = 0
 const IsIos = 0
