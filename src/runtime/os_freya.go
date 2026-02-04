@@ -52,7 +52,7 @@ func futexsleep(addr *uint32, val uint32, ns int64) {
 
 	var ts timespec
 	ts.setNsec(ns)
-	futex(unsafe.Pointer(addr), _FUTEX_WAIT_PRIVATE, val, &ts, nil, 0)
+	futex(unsafe.Pointer(addr), _FUTEX_WAIT_PRIVATE, val, unsafe.Pointer(&ts), nil, 0)
 }
 
 // If any procs are sleeping on addr, wake up at most cnt.
@@ -175,9 +175,7 @@ func sysargs(argc int32, argv **byte) {
 }
 
 func osinit() {
-	// Set ncpu. On Freya we default to 1 since we don't have
-	// sched_getaffinity.
-	ncpu = 1
+	numCPUStartup = getCPUCount()
 	if physPageSize == 0 {
 		physPageSize = 4096
 	}
@@ -363,22 +361,6 @@ const (
 	_SI_TKILL = -6
 )
 
-// sigFromUser reports whether the signal was sent because of a call
-// to kill or tgkill.
-//
-//go:nosplit
-func (c *sigctxt) sigFromUser() bool {
-	code := int32(c.sigcode())
-	return code == _SI_USER || code == _SI_TKILL
-}
-
-// sigFromSeccomp reports whether the signal was sent from seccomp.
-//
-//go:nosplit
-func (c *sigctxt) sigFromSeccomp() bool {
-	return false
-}
-
 func readRandom(r []byte) int {
 	// Freya: try reading from /dev/urandom
 	var urandom_dev = []byte("/dev/urandom\x00")
@@ -417,6 +399,23 @@ func fixSigactionForCgo(new *sigactiont) {
 func mprotect(addr unsafe.Pointer, n uintptr, prot int32) (ret int32, errno int32) {
 	// Freya: stub for now
 	return 0, 0
+}
+
+// getCPUCount returns the number of logical CPUs usable by the current process.
+// On Freya, we don't have sched_getaffinity, so we return 1.
+func getCPUCount() int32 {
+	return 1
+}
+
+//go:nosplit
+func fcntl(fd, cmd, arg int32) (ret int32, errno int32) {
+	// Freya doesn't support fcntl yet; return ENOSYS.
+	return -1, _ENOSYS
+}
+
+//go:nosplit
+func runPerThreadSyscall() {
+	throw("runPerThreadSyscall only valid on linux")
 }
 
 // dummy declarations to satisfy the linker for unused references

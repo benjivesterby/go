@@ -373,7 +373,10 @@ TEXT runtime·sched_getaffinity(SB),NOSPLIT,$0-28
 	MOVW	ZERO, ret+24(FP)
 	RET
 
-// func sbrk0() uintptr
-TEXT runtime·sbrk0(SB),NOSPLIT,$0-8
-	MOV	ZERO, ret+0(FP)
+// func madvise(addr unsafe.Pointer, n uintptr, flags int32) int32
+TEXT runtime·madvise(SB),NOSPLIT,$0-28
+	// Freya doesn't have madvise; return 0
+	MOVW	ZERO, ret+24(FP)
 	RET
+
+// sbrk0 is provided by stubs_nonlinux.go for non-linux targets.
