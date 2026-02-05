@@ -203,6 +203,10 @@ needtls:
 	// skip runtime·ldt0setup(SB) and tls test on Plan 9 in all cases
 	JMP	ok
 #endif
+#ifdef GOOS_freya
+	// skip runtime·ldt0setup(SB) and tls test on Freya in all cases
+	JMP	ok
+#endif
 
 	// set up %gs
 	CALL	ldt0setup<>(SB)

@@ -2531,6 +2531,7 @@ func prefixof(ctxt *obj.Link, a *obj.Addr) int {
 				case objabi.Hdarwin,
 					objabi.Hdragonfly,
 					objabi.Hfreebsd,
+					objabi.Hfreya,
 					objabi.Hnetbsd,
 					objabi.Hopenbsd:
 					return 0x65 // GS
@@ -2554,6 +2555,7 @@ func prefixof(ctxt *obj.Link, a *obj.Addr) int {
 
 			case objabi.Hdragonfly,
 				objabi.Hfreebsd,
+				objabi.Hfreya,
 				objabi.Hnetbsd,
 				objabi.Hopenbsd,
 				objabi.Hsolaris:

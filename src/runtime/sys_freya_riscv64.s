@@ -39,6 +39,7 @@
 #define SYS_close		103
 #define SYS_seek		105
 #define SYS_stat		106
+#define SYS_fcntl		80
 
 // func exit(code int32)
 TEXT runtime·exit(SB),NOSPLIT|NOFRAME,$0-4
@@ -371,6 +372,27 @@ TEXT runtime·osyield(SB),NOSPLIT,$0
 TEXT runtime·sched_getaffinity(SB),NOSPLIT,$0-28
 	// Freya doesn't have sched_getaffinity; return 0 (will use default ncpu=1)
 	MOVW	ZERO, ret+24(FP)
+	RET
+
+// func fcntl(fd, cmd, arg int32) (ret int32, errno int32)
+TEXT runtime·fcntl(SB),NOSPLIT|NOFRAME,$0-20
+	MOVW	fd+0(FP), A0
+	MOVW	cmd+4(FP), A1
+	MOVW	arg+8(FP), A2
+	MOV	$SYS_fcntl, A7
+	ECALL
+	// Check for error (negative return = errno)
+	MOV	$-4096, T0
+	BLTU	A0, T0, noerr
+	// Error case: A0 contains negative errno
+	MOV	$-1, T1
+	MOVW	T1, ret+12(FP)
+	SUB	A0, ZERO, A0	// negate to get positive errno
+	MOVW	A0, errno+16(FP)
+	RET
+noerr:
+	MOVW	A0, ret+12(FP)
+	MOVW	ZERO, errno+16(FP)
 	RET
 
 // func madvise(addr unsafe.Pointer, n uintptr, flags int32) int32

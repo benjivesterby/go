@@ -40,6 +40,7 @@
 #define SYS_close		103
 #define SYS_seek		105
 #define SYS_stat		106
+#define SYS_fcntl		80
 
 TEXT runtime·exit(SB),NOSPLIT,$0-4
 	MOVL	code+0(FP), DI
@@ -268,7 +269,8 @@ TEXT runtime·sigreturn__sigaction(SB),NOSPLIT,$0
 	SYSCALL
 	INT $3	// not reached
 
-TEXT runtime·sysMmap(SB),NOSPLIT,$0
+// func mmap(addr unsafe.Pointer, n uintptr, prot, flags, fd int32, off uint32) (p unsafe.Pointer, err int)
+TEXT runtime·mmap(SB),NOSPLIT,$0
 	MOVQ	addr+0(FP), DI
 	MOVQ	n+8(FP), SI
 	MOVL	prot+16(FP), DX
@@ -290,7 +292,8 @@ ok:
 	MOVQ	$0, err+40(FP)
 	RET
 
-TEXT runtime·sysMunmap(SB),NOSPLIT,$0
+// func munmap(addr unsafe.Pointer, n uintptr)
+TEXT runtime·munmap(SB),NOSPLIT,$0
 	MOVQ	addr+0(FP), DI
 	MOVQ	n+8(FP), SI
 	MOVQ	$SYS_munmap, AX
@@ -298,6 +301,32 @@ TEXT runtime·sysMunmap(SB),NOSPLIT,$0
 	CMPQ	AX, $0xfffffffffffff001
 	JLS	2(PC)
 	MOVL	$0xf1, 0xf1  // crash
+	RET
+
+// func madvise(addr unsafe.Pointer, n uintptr, flags int32) int32
+TEXT runtime·madvise(SB),NOSPLIT,$0-28
+	// Freya doesn't have madvise; return 0
+	MOVL	$0, AX
+	MOVL	AX, ret+24(FP)
+	RET
+
+// func fcntl(fd, cmd, arg int32) (ret int32, errno int32)
+TEXT runtime·fcntl(SB),NOSPLIT,$0-20
+	MOVL	fd+0(FP), DI
+	MOVL	cmd+4(FP), SI
+	MOVL	arg+8(FP), DX
+	MOVL	$SYS_fcntl, AX
+	SYSCALL
+	CMPQ	AX, $0xfffffffffffff001
+	JLS	noerr
+	// Error case: AX contains negative errno
+	MOVL	$-1, ret+12(FP)
+	NEGQ	AX
+	MOVL	AX, errno+16(FP)
+	RET
+noerr:
+	MOVL	AX, ret+12(FP)
+	MOVL	$0, errno+16(FP)
 	RET
 
 // int64 futex(int32 *uaddr, int32 op, int32 val,

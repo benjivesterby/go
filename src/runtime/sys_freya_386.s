@@ -39,6 +39,7 @@
 #define SYS_close		103
 #define SYS_seek		105
 #define SYS_stat		106
+#define SYS_fcntl		80
 
 TEXT runtime·exit(SB),NOSPLIT,$0
 	MOVL	$SYS_exit, AX
@@ -325,6 +326,25 @@ TEXT runtime·madvise(SB),NOSPLIT,$0
 	MOVL	AX, ret+12(FP)
 	RET
 
+// func fcntl(fd, cmd, arg int32) (ret int32, errno int32)
+TEXT runtime·fcntl(SB),NOSPLIT,$0-20
+	MOVL	$SYS_fcntl, AX
+	MOVL	fd+0(FP), BX
+	MOVL	cmd+4(FP), CX
+	MOVL	arg+8(FP), DX
+	INVOKE_SYSCALL
+	CMPL	AX, $0xfffff001
+	JLS	noerr
+	// Error case
+	MOVL	$-1, ret+12(FP)
+	NEGL	AX
+	MOVL	AX, errno+16(FP)
+	RET
+noerr:
+	MOVL	AX, ret+12(FP)
+	MOVL	$0, errno+16(FP)
+	RET
+
 // int32 futex(int32 *uaddr, int32 op, int32 val,
 //	struct timespec *timeout, int32 *uaddr2, int32 val2);
 TEXT runtime·futex(SB),NOSPLIT,$0
@@ -418,4 +438,9 @@ TEXT runtime·sched_getaffinity(SB),NOSPLIT,$0
 TEXT runtime·sbrk0(SB),NOSPLIT,$0-4
 	MOVL	$0, AX
 	MOVL	AX, ret+0(FP)
+	RET
+
+// setldt(int entry, int address, int limit)
+// Freya: no-op for now since we skip ldt0setup
+TEXT runtime·setldt(SB),NOSPLIT,$0
 	RET

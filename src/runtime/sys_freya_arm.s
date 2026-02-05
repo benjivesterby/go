@@ -40,6 +40,7 @@
 #define SYS_close		103
 #define SYS_seek		105
 #define SYS_stat		106
+#define SYS_fcntl		80
 
 TEXT runtime·open(SB),NOSPLIT,$0
 	MOVW	name+0(FP), R0
@@ -195,6 +196,28 @@ TEXT runtime·madvise(SB),NOSPLIT,$0
 	// Freya doesn't have madvise; just return 0
 	MOVW	$0, R0
 	MOVW	R0, ret+12(FP)
+	RET
+
+// func fcntl(fd, cmd, arg int32) (ret int32, errno int32)
+TEXT runtime·fcntl(SB),NOSPLIT,$0-20
+	MOVW	fd+0(FP), R0
+	MOVW	cmd+4(FP), R1
+	MOVW	arg+8(FP), R2
+	MOVW	$SYS_fcntl, R7
+	SWI	$0
+	MOVW	$0xfffff001, R1
+	CMP	R1, R0
+	BLS	noerr
+	// Error case
+	MOVW	$-1, R1
+	MOVW	R1, ret+12(FP)
+	RSB	$0, R0, R0
+	MOVW	R0, errno+16(FP)
+	RET
+noerr:
+	MOVW	R0, ret+12(FP)
+	MOVW	$0, R1
+	MOVW	R1, errno+16(FP)
 	RET
 
 TEXT runtime·setitimer(SB),NOSPLIT,$0
@@ -427,3 +450,6 @@ TEXT runtime·sbrk0(SB),NOSPLIT,$0-4
 	MOVW	$0, R0
 	MOVW	R0, ret+0(FP)
 	RET
+
+TEXT ·publicationBarrier(SB),NOSPLIT|NOFRAME,$0-0
+	B	runtime·armPublicationBarrier(SB)

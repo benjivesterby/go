@@ -407,11 +407,10 @@ func getCPUCount() int32 {
 	return 1
 }
 
-//go:nosplit
-func fcntl(fd, cmd, arg int32) (ret int32, errno int32) {
-	// Freya doesn't support fcntl yet; return ENOSYS.
-	return -1, _ENOSYS
-}
+// fcntl is implemented in sys_freya_*.s
+//
+//go:noescape
+func fcntl(fd, cmd, arg int32) (ret int32, errno int32)
 
 //go:nosplit
 func runPerThreadSyscall() {

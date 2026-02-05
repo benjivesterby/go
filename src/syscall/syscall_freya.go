@@ -9,514 +9,28 @@
 package syscall
 
 import (
-	"runtime"
-	"sync"
 	"unsafe"
 )
 
-// Freya syscall numbers.
-const (
-	// IPC
-	SYS_SEND    = 1
-	SYS_RECEIVE = 2
-	SYS_CALL    = 3
-	SYS_REPLY   = 4
-	SYS_NOTIFY  = 5
-	SYS_WAIT    = 6
-
-	// Process management
-	SYS_PROCESS_EXIT   = 10
-	SYS_PROCESS_WAIT   = 12
-	SYS_GETPID         = 13
-	SYS_GETTID         = 14
-	SYS_GETPPID        = 35
-	SYS_PROCESS_CREATE = 25
-	SYS_PROCESS_EXEC   = 26
-	SYS_PROCESS_KILL   = 27
-
-	// Thread management
-	SYS_THREAD_YIELD  = 15
-	SYS_THREAD_EXIT   = 16
-	SYS_THREAD_CREATE = 17
-	SYS_THREAD_SLEEP  = 18
-
-	// Time
-	SYS_GETTIME       = 19
-	SYS_NANOSLEEP     = 36
-	SYS_CLOCK_GETTIME = 37
-	SYS_FUTEX         = 44
-
-	// Memory management
-	SYS_MEMORY_MAP     = 20
-	SYS_MEMORY_UNMAP   = 21
-	SYS_MEMORY_PROTECT = 22
-
-	// User/Group
-	SYS_GETUID = 28
-	SYS_SETUID = 29
-	SYS_GETGID = 33
-	SYS_SETGID = 34
-
-	// File descriptors
-	SYS_FILE_DUP    = 54
-	SYS_PIPE_CREATE = 55
-	SYS_FILE_CHDIR  = 56
-	SYS_FILE_GETCWD = 57
-	SYS_FILE_CHMOD  = 58
-	SYS_FILE_FCNTL  = 80
-	SYS_FILE_IOCTL  = 81
-	SYS_FILE_DUP2   = 86
-	SYS_FILE_POLL   = 87
-	SYS_FILE_READV  = 88
-	SYS_FILE_WRITEV = 89
-	SYS_FILE_PREAD  = 90
-	SYS_FILE_PWRITE = 91
-
-	// Signals
-	SYS_RT_SIGACTION   = 94
-	SYS_RT_SIGPROCMASK = 95
-	SYS_RT_SIGRETURN   = 97
-
-	// File operations
-	SYS_FILE_OPEN     = 100
-	SYS_FILE_READ     = 101
-	SYS_FILE_WRITE    = 102
-	SYS_FILE_CLOSE    = 103
-	SYS_FILE_READDIR  = 104
-	SYS_FILE_SEEK     = 105
-	SYS_FILE_STAT     = 106
-	SYS_FILE_FSTAT    = 107
-	SYS_FILE_MKDIR    = 108
-	SYS_FILE_UNLINK   = 109
-	SYS_FILE_TRUNCATE = 110
-	SYS_FILE_RMDIR    = 111
-	SYS_FILE_RENAME   = 112
-	SYS_FILE_FSYNC    = 113
-
-	// Links
-	SYS_FILE_LINK     = 67
-	SYS_FILE_SYMLINK  = 68
-	SYS_FILE_READLINK = 69
-
-	// Sockets
-	SYS_SOCKET_CREATE  = 70
-	SYS_SOCKET_BIND    = 71
-	SYS_SOCKET_CONNECT = 72
-	SYS_SOCKET_SEND    = 73
-	SYS_SOCKET_RECV    = 74
-	SYS_SOCKET_CLOSE   = 77
-	SYS_SOCKET_LISTEN  = 78
-	SYS_SOCKET_ACCEPT  = 79
-)
-
-// File open flags.
-const (
-	O_RDONLY   = 0x0
-	O_WRONLY   = 0x1
-	O_RDWR     = 0x2
-	O_CREAT    = 0x40
-	O_EXCL     = 0x80
-	O_TRUNC    = 0x200
-	O_APPEND   = 0x400
-	O_NONBLOCK = 0x800
-	O_CLOEXEC  = 0x80000
-)
-
-// Seek whence values.
-const (
-	SEEK_SET = 0
-	SEEK_CUR = 1
-	SEEK_END = 2
-)
-
-// Memory protection flags.
-const (
-	PROT_NONE  = 0x0
-	PROT_READ  = 0x1
-	PROT_WRITE = 0x2
-	PROT_EXEC  = 0x4
-)
-
-// Memory mapping flags.
-const (
-	MAP_SHARED    = 0x1
-	MAP_PRIVATE   = 0x2
-	MAP_ANONYMOUS = 0x20
-	MAP_ANON      = MAP_ANONYMOUS
-)
-
-// File mode bits.
-const (
-	S_IFMT   = 0xf000
-	S_IFIFO  = 0x1000
-	S_IFCHR  = 0x2000
-	S_IFDIR  = 0x4000
-	S_IFBLK  = 0x6000
-	S_IFREG  = 0x8000
-	S_IFLNK  = 0xa000
-	S_IFSOCK = 0xc000
-	S_ISUID  = 0x800
-	S_ISGID  = 0x400
-	S_ISVTX  = 0x200
-)
-
-// Wait flags.
-const (
-	WNOHANG    = 0x1
-	WUNTRACED  = 0x2
-	WCONTINUED = 0x8
-)
-
-// Socket address families.
-const (
-	AF_UNSPEC = 0x0
-	AF_UNIX   = 0x1
-	AF_INET   = 0x2
-	AF_INET6  = 0xa
-)
-
-// Path limits.
-const (
-	PathMax = 0x1000
-)
-
-// Size constants.
-const (
-	sizeofPtr      = 0x8
-	sizeofShort    = 0x2
-	sizeofInt      = 0x4
-	sizeofLong     = 0x8
-	sizeofLongLong = 0x8
-)
-
-// C type aliases.
-type (
-	_C_short     int16
-	_C_int       int32
-	_C_long      int64
-	_C_long_long int64
-)
-
-// Errno values (POSIX-compatible).
-const (
-	EPERM           Errno = 0x1
-	ENOENT          Errno = 0x2
-	ESRCH           Errno = 0x3
-	EINTR           Errno = 0x4
-	EIO             Errno = 0x5
-	ENXIO           Errno = 0x6
-	E2BIG           Errno = 0x7
-	ENOEXEC         Errno = 0x8
-	EBADF           Errno = 0x9
-	ECHILD          Errno = 0xa
-	EAGAIN          Errno = 0xb
-	ENOMEM          Errno = 0xc
-	EACCES          Errno = 0xd
-	EFAULT          Errno = 0xe
-	EBUSY           Errno = 0x10
-	EEXIST          Errno = 0x11
-	EXDEV           Errno = 0x12
-	ENODEV          Errno = 0x13
-	ENOTDIR         Errno = 0x14
-	EISDIR          Errno = 0x15
-	EINVAL          Errno = 0x16
-	ENFILE          Errno = 0x17
-	EMFILE          Errno = 0x18
-	ENOTTY          Errno = 0x19
-	EFBIG           Errno = 0x1b
-	ENOSPC          Errno = 0x1c
-	ESPIPE          Errno = 0x1d
-	EROFS           Errno = 0x1e
-	EPIPE           Errno = 0x20
-	ERANGE          Errno = 0x22
-	ENAMETOOLONG    Errno = 0x24
-	ENOSYS          Errno = 0x26
-	ENOTEMPTY       Errno = 0x27
-	ELOOP           Errno = 0x28
-	ENOTSUP         Errno = 0x5f
-	EOPNOTSUPP      Errno = 0x5f
-	EAFNOSUPPORT    Errno = 0x61
-	EADDRINUSE      Errno = 0x62
-	ECONNREFUSED    Errno = 0x6f
-	ETIMEDOUT       Errno = 0x6e
-	EWOULDBLOCK     Errno = EAGAIN
-	ECONNRESET      Errno = 0x68
-	ECONNABORTED    Errno = 0x67
-	ENETUNREACH     Errno = 0x65
-	EHOSTUNREACH    Errno = 0x71
-	EALREADY        Errno = 0x72
-	EINPROGRESS     Errno = 0x73
-	EDESTADDRREQ    Errno = 0x59
-	EMSGSIZE        Errno = 0x5a
-	ENOBUFS         Errno = 0x69
-	EISCONN         Errno = 0x6a
-	ENOTCONN        Errno = 0x6b
-	ENOTSOCK        Errno = 0x58
-	EPROTONOSUPPORT Errno = 0x5d
-)
-
-// Signal numbers (POSIX-compatible).
-const (
-	SIGHUP    = Signal(0x1)
-	SIGINT    = Signal(0x2)
-	SIGQUIT   = Signal(0x3)
-	SIGILL    = Signal(0x4)
-	SIGTRAP   = Signal(0x5)
-	SIGABRT   = Signal(0x6)
-	SIGBUS    = Signal(0x7)
-	SIGFPE    = Signal(0x8)
-	SIGKILL   = Signal(0x9)
-	SIGUSR1   = Signal(0xa)
-	SIGSEGV   = Signal(0xb)
-	SIGUSR2   = Signal(0xc)
-	SIGPIPE   = Signal(0xd)
-	SIGALRM   = Signal(0xe)
-	SIGTERM   = Signal(0xf)
-	SIGCHLD   = Signal(0x11)
-	SIGCONT   = Signal(0x12)
-	SIGSTOP   = Signal(0x13)
-	SIGTSTP   = Signal(0x14)
-	SIGTTIN   = Signal(0x15)
-	SIGTTOU   = Signal(0x16)
-	SIGURG    = Signal(0x17)
-	SIGXCPU   = Signal(0x18)
-	SIGXFSZ   = Signal(0x19)
-	SIGVTALRM = Signal(0x1a)
-	SIGPROF   = Signal(0x1b)
-	SIGWINCH  = Signal(0x1c)
-	SIGIO     = Signal(0x1d)
-	SIGSYS    = Signal(0x1f)
-)
-
-// Error strings table.
-var errors = [...]string{
-	1:   "operation not permitted",
-	2:   "no such file or directory",
-	3:   "no such process",
-	4:   "interrupted system call",
-	5:   "input/output error",
-	6:   "no such device or address",
-	7:   "argument list too long",
-	8:   "exec format error",
-	9:   "bad file descriptor",
-	10:  "no child processes",
-	11:  "resource temporarily unavailable",
-	12:  "cannot allocate memory",
-	13:  "permission denied",
-	14:  "bad address",
-	16:  "device or resource busy",
-	17:  "file exists",
-	18:  "invalid cross-device link",
-	19:  "no such device",
-	20:  "not a directory",
-	21:  "is a directory",
-	22:  "invalid argument",
-	23:  "too many open files in system",
-	24:  "too many open files",
-	25:  "inappropriate ioctl for device",
-	27:  "file too large",
-	28:  "no space left on device",
-	29:  "illegal seek",
-	30:  "read-only file system",
-	32:  "broken pipe",
-	34:  "numerical result out of range",
-	36:  "file name too long",
-	38:  "function not implemented",
-	39:  "directory not empty",
-	40:  "too many levels of symbolic links",
-	88:  "socket operation on non-socket",
-	89:  "destination address required",
-	90:  "message too long",
-	93:  "protocol not supported",
-	95:  "operation not supported",
-	97:  "address family not supported by protocol",
-	98:  "address already in use",
-	99:  "cannot assign requested address",
-	101: "network is unreachable",
-	103: "software caused connection abort",
-	104: "connection reset by peer",
-	105: "no buffer space available",
-	106: "transport endpoint is already connected",
-	107: "transport endpoint is not connected",
-	110: "connection timed out",
-	111: "connection refused",
-	113: "no route to host",
-	114: "operation already in progress",
-	115: "operation now in progress",
-}
-
-// Signal strings table.
-var signals = [...]string{
-	1:  "hangup",
-	2:  "interrupt",
-	3:  "quit",
-	4:  "illegal instruction",
-	5:  "trace/breakpoint trap",
-	6:  "aborted",
-	7:  "bus error",
-	8:  "floating point exception",
-	9:  "killed",
-	10: "user defined signal 1",
-	11: "segmentation fault",
-	12: "user defined signal 2",
-	13: "broken pipe",
-	14: "alarm clock",
-	15: "terminated",
-	17: "child exited",
-	18: "continued",
-	19: "stopped (signal)",
-	20: "stopped",
-	21: "stopped (tty input)",
-	22: "stopped (tty output)",
-	23: "urgent I/O condition",
-	24: "CPU time limit exceeded",
-	25: "file size limit exceeded",
-	26: "virtual timer expired",
-	27: "profiling timer expired",
-	28: "window changed",
-	29: "I/O possible",
-	31: "bad system call",
-}
-
-// Timespec represents a time with nanosecond precision.
-type Timespec struct {
-	Sec  int64
-	Nsec int64
-}
-
-// Timeval represents a time with microsecond precision.
-type Timeval struct {
-	Sec  int64
-	Usec int64
-}
-
-// Time_t is the type for time values.
-type Time_t int64
-
-// Stat_t is the file status structure.
-type Stat_t struct {
-	Dev     uint64
-	Ino     uint64
-	Mode    uint32
-	Nlink   uint32
-	Uid     uint32
-	Gid     uint32
-	Rdev    uint64
-	_       uint64
-	Size    int64
-	Blksize int32
-	_       int32
-	Blocks  int64
-	Atim    Timespec
-	Mtim    Timespec
-	Ctim    Timespec
-	_       [2]int32
-}
-
-// Dirent is the directory entry structure.
-type Dirent struct {
-	Ino    uint64
-	Off    int64
-	Reclen uint16
-	Type   uint8
-	Name   [256]uint8
-	_      [5]byte
-}
-
-// Rusage is the resource usage structure.
-type Rusage struct {
-	Utime    Timeval
-	Stime    Timeval
-	Maxrss   int64
-	Ixrss    int64
-	Idrss    int64
-	Isrss    int64
-	Minflt   int64
-	Majflt   int64
-	Nswap    int64
-	Inblock  int64
-	Oublock  int64
-	Msgsnd   int64
-	Msgrcv   int64
-	Nsignals int64
-	Nvcsw    int64
-	Nivcsw   int64
-}
-
-// Rlimit is the resource limit structure.
-type Rlimit struct {
-	Cur uint64
-	Max uint64
-}
-
-// WaitStatus represents the status of a waited-for process.
-type WaitStatus uint32
-
-const (
-	mask    = 0x7F
-	core    = 0x80
-	exited  = 0x00
-	stopped = 0x7F
-	shift   = 8
-)
-
-func (w WaitStatus) Exited() bool    { return w&mask == exited }
-func (w WaitStatus) Signaled() bool  { return w&mask != stopped && w&mask != exited }
-func (w WaitStatus) Stopped() bool   { return w&0xFF == stopped }
-func (w WaitStatus) Continued() bool { return w == 0xFFFF }
-func (w WaitStatus) CoreDump() bool  { return w.Signaled() && w&core != 0 }
-
-func (w WaitStatus) ExitStatus() int {
-	if !w.Exited() {
-		return -1
-	}
-	return int(w>>shift) & 0xFF
-}
-
-func (w WaitStatus) Signal() Signal {
-	if !w.Signaled() {
-		return -1
-	}
-	return Signal(w & mask)
-}
-
-func (w WaitStatus) StopSignal() Signal {
-	if !w.Stopped() {
-		return -1
-	}
-	return Signal(w>>shift) & 0xFF
-}
-
-func (w WaitStatus) TrapCause() int {
-	if w.StopSignal() != SIGTRAP {
-		return -1
-	}
-	return int(w>>shift) >> 8
-}
-
-// Standard file descriptors.
-var (
-	Stdin  = 0
-	Stdout = 1
-	Stderr = 2
-)
-
-const ImplementsGetwd = true
-
-// For testing: clients can set this flag to force
-// creation of IPv6 sockets to return EAFNOSUPPORT.
-var SocketDisableIPv6 bool
-
 // Pull in entersyscall/exitsyscall for Syscall/Syscall6.
-//
 //go:linkname runtime_entersyscall runtime.entersyscall
 func runtime_entersyscall()
 
 //go:linkname runtime_exitsyscall runtime.exitsyscall
 func runtime_exitsyscall()
 
-// Syscall performs a system call, notifying the scheduler.
-//
+// Assembly-defined functions
+func RawSyscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err Errno)
+func rawSyscallNoError(trap, a1, a2, a3 uintptr) (r1, r2 uintptr)
+
+//go:uintptrkeepalive
+//go:nosplit
+//go:norace
+//go:linkname RawSyscall
+func RawSyscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err Errno) {
+	return RawSyscall6(trap, a1, a2, a3, 0, 0, 0)
+}
+
 //go:uintptrkeepalive
 //go:nosplit
 //go:linkname Syscall
@@ -527,8 +41,6 @@ func Syscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err Errno) {
 	return
 }
 
-// Syscall6 performs a system call with 6 arguments, notifying the scheduler.
-//
 //go:uintptrkeepalive
 //go:nosplit
 //go:linkname Syscall6
@@ -539,482 +51,7 @@ func Syscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err Errno) 
 	return
 }
 
-// RawSyscall performs a raw system call without scheduler notification.
-//
-//go:uintptrkeepalive
-//go:nosplit
-//go:norace
-//go:linkname RawSyscall
-func RawSyscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err Errno) {
-	return RawSyscall6(trap, a1, a2, a3, 0, 0, 0)
-}
-
-// RawSyscall6 is implemented in assembly.
-//
-//go:uintptrkeepalive
-//go:nosplit
-//go:norace
-//go:linkname RawSyscall6
-func RawSyscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err Errno)
-
-// Do the interface allocations only once for common
-// Errno values.
-var (
-	errEAGAIN error = EAGAIN
-	errEINVAL error = EINVAL
-	errENOENT error = ENOENT
-)
-
-// errnoErr returns common boxed Errno values, to prevent
-// allocations at runtime.
-func errnoErr(e Errno) error {
-	switch e {
-	case 0:
-		return nil
-	case EAGAIN:
-		return errEAGAIN
-	case EINVAL:
-		return errEINVAL
-	case ENOENT:
-		return errENOENT
-	}
-	return e
-}
-
-/*
- * Wrapped system calls
- */
-
-func Open(path string, mode int, perm uint32) (fd int, err error) {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return -1, err
-	}
-	r, _, e := Syscall(SYS_FILE_OPEN, uintptr(unsafe.Pointer(p)), uintptr(mode), uintptr(perm))
-	if e != 0 {
-		return -1, errnoErr(e)
-	}
-	return int(r), nil
-}
-
-func read(fd int, p []byte) (n int, err error) {
-	var _p0 unsafe.Pointer
-	if len(p) > 0 {
-		_p0 = unsafe.Pointer(&p[0])
-	}
-	r, _, e := Syscall(SYS_FILE_READ, uintptr(fd), uintptr(_p0), uintptr(len(p)))
-	if e != 0 {
-		return 0, errnoErr(e)
-	}
-	return int(r), nil
-}
-
-func write(fd int, p []byte) (n int, err error) {
-	var _p0 unsafe.Pointer
-	if len(p) > 0 {
-		_p0 = unsafe.Pointer(&p[0])
-	}
-	r, _, e := Syscall(SYS_FILE_WRITE, uintptr(fd), uintptr(_p0), uintptr(len(p)))
-	if e != 0 {
-		return 0, errnoErr(e)
-	}
-	return int(r), nil
-}
-
-func Close(fd int) (err error) {
-	_, _, e := Syscall(SYS_FILE_CLOSE, uintptr(fd), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Seek(fd int, offset int64, whence int) (newoffset int64, err error) {
-	r, _, e := Syscall(SYS_FILE_SEEK, uintptr(fd), uintptr(offset), uintptr(whence))
-	if e != 0 {
-		return -1, errnoErr(e)
-	}
-	return int64(r), nil
-}
-
-func Stat(path string, stat *Stat_t) (err error) {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_STAT, uintptr(unsafe.Pointer(p)), uintptr(unsafe.Pointer(stat)), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Fstat(fd int, stat *Stat_t) (err error) {
-	_, _, e := Syscall(SYS_FILE_FSTAT, uintptr(fd), uintptr(unsafe.Pointer(stat)), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Lstat(path string, stat *Stat_t) (err error) {
-	// Freya uses FILE_STAT; symlink-aware stat may be added later.
-	return Stat(path, stat)
-}
-
-func Mkdir(path string, mode uint32) (err error) {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_MKDIR, uintptr(unsafe.Pointer(p)), uintptr(mode), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Unlink(path string) error {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_UNLINK, uintptr(unsafe.Pointer(p)), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Rmdir(path string) error {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_RMDIR, uintptr(unsafe.Pointer(p)), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Rename(oldpath string, newpath string) (err error) {
-	oldp, err := BytePtrFromString(oldpath)
-	if err != nil {
-		return err
-	}
-	newp, err := BytePtrFromString(newpath)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_RENAME, uintptr(unsafe.Pointer(oldp)), uintptr(unsafe.Pointer(newp)), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Truncate(path string, length int64) (err error) {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_TRUNCATE, uintptr(unsafe.Pointer(p)), uintptr(length), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Fsync(fd int) (err error) {
-	_, _, e := Syscall(SYS_FILE_FSYNC, uintptr(fd), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Link(oldpath string, newpath string) (err error) {
-	oldp, err := BytePtrFromString(oldpath)
-	if err != nil {
-		return err
-	}
-	newp, err := BytePtrFromString(newpath)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_LINK, uintptr(unsafe.Pointer(oldp)), uintptr(unsafe.Pointer(newp)), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Symlink(oldpath string, newpath string) (err error) {
-	oldp, err := BytePtrFromString(oldpath)
-	if err != nil {
-		return err
-	}
-	newp, err := BytePtrFromString(newpath)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_SYMLINK, uintptr(unsafe.Pointer(oldp)), uintptr(unsafe.Pointer(newp)), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Readlink(path string, buf []byte) (n int, err error) {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return 0, err
-	}
-	var _p0 unsafe.Pointer
-	if len(buf) > 0 {
-		_p0 = unsafe.Pointer(&buf[0])
-	}
-	r, _, e := Syscall(SYS_FILE_READLINK, uintptr(unsafe.Pointer(p)), uintptr(_p0), uintptr(len(buf)))
-	if e != 0 {
-		return 0, errnoErr(e)
-	}
-	return int(r), nil
-}
-
-func Exit(code int) {
-	RawSyscall(SYS_PROCESS_EXIT, uintptr(code), 0, 0)
-}
-
-func Getpid() (pid int) {
-	r, _, _ := RawSyscall(SYS_GETPID, 0, 0, 0)
-	return int(r)
-}
-
-func Getppid() (ppid int) {
-	r, _, _ := RawSyscall(SYS_GETPPID, 0, 0, 0)
-	return int(r)
-}
-
-func Gettid() (tid int) {
-	r, _, _ := RawSyscall(SYS_GETTID, 0, 0, 0)
-	return int(r)
-}
-
-func Kill(pid int, sig Signal) (err error) {
-	_, _, e := RawSyscall(SYS_PROCESS_KILL, uintptr(pid), uintptr(sig), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Getuid() (uid int) {
-	r, _, _ := RawSyscall(SYS_GETUID, 0, 0, 0)
-	return int(r)
-}
-
-func Getgid() (gid int) {
-	r, _, _ := RawSyscall(SYS_GETGID, 0, 0, 0)
-	return int(r)
-}
-
-func Geteuid() (euid int) {
-	// Freya does not distinguish effective vs real uid.
-	return Getuid()
-}
-
-func Getegid() (egid int) {
-	// Freya does not distinguish effective vs real gid.
-	return Getgid()
-}
-
-func Setuid(uid int) (err error) {
-	_, _, e := RawSyscall(SYS_SETUID, uintptr(uid), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Setgid(gid int) (err error) {
-	_, _, e := RawSyscall(SYS_SETGID, uintptr(gid), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Getgroups() (gids []int, err error) {
-	return make([]int, 0), nil
-}
-
-func Setgroups(gids []int) (err error) {
-	return ENOSYS
-}
-
-func Pipe(p []int) (err error) {
-	if len(p) != 2 {
-		return EINVAL
-	}
-	var pp [2]_C_int
-	_, _, e := RawSyscall(SYS_PIPE_CREATE, uintptr(unsafe.Pointer(&pp)), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	p[0] = int(pp[0])
-	p[1] = int(pp[1])
-	return nil
-}
-
-func Dup(oldfd int) (fd int, err error) {
-	r, _, e := Syscall(SYS_FILE_DUP, uintptr(oldfd), 0, 0)
-	if e != 0 {
-		return -1, errnoErr(e)
-	}
-	return int(r), nil
-}
-
-func Dup2(oldfd int, newfd int) (err error) {
-	_, _, e := Syscall(SYS_FILE_DUP2, uintptr(oldfd), uintptr(newfd), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Chdir(path string) (err error) {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_CHDIR, uintptr(unsafe.Pointer(p)), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Fchdir(fd int) (err error) {
-	_, _, e := Syscall(SYS_FILE_CHDIR, uintptr(fd), 0, 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Getcwd(buf []byte) (n int, err error) {
-	var _p0 unsafe.Pointer
-	if len(buf) > 0 {
-		_p0 = unsafe.Pointer(&buf[0])
-	}
-	r, _, e := Syscall(SYS_FILE_GETCWD, uintptr(_p0), uintptr(len(buf)), 0)
-	if e != 0 {
-		return 0, errnoErr(e)
-	}
-	return int(r), nil
-}
-
-func Getwd() (wd string, err error) {
-	var buf [PathMax]byte
-	n, err := Getcwd(buf[0:])
-	if err != nil {
-		return "", err
-	}
-	if n < 1 || n > len(buf) || buf[n-1] != 0 {
-		return "", EINVAL
-	}
-	if buf[0] != '/' {
-		return "", ENOENT
-	}
-	return string(buf[0 : n-1]), nil
-}
-
-func Chmod(path string, mode uint32) (err error) {
-	p, err := BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
-	_, _, e := Syscall(SYS_FILE_CHMOD, uintptr(unsafe.Pointer(p)), uintptr(mode), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Fchmod(fd int, mode uint32) (err error) {
-	_, _, e := Syscall(SYS_FILE_CHMOD, uintptr(fd), uintptr(mode), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Nanosleep(time *Timespec, leftover *Timespec) (err error) {
-	_, _, e := Syscall(SYS_NANOSLEEP, uintptr(unsafe.Pointer(time)), uintptr(unsafe.Pointer(leftover)), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
-}
-
-func Gettimeofday(tv *Timeval) error {
-	var ts Timespec
-	_, _, e := RawSyscall(SYS_CLOCK_GETTIME, 0, uintptr(unsafe.Pointer(&ts)), 0)
-	if e != 0 {
-		return errnoErr(e)
-	}
-	tv.Sec = ts.Sec
-	tv.Usec = ts.Nsec / 1000
-	return nil
-}
-
-func NsecToTimeval(nsec int64) (tv Timeval) {
-	nsec += 999 // round up to microsecond
-	tv.Usec = int64(nsec % 1e9 / 1e3)
-	tv.Sec = int64(nsec / 1e9)
-	return
-}
-
-func NsecToTimespec(nsec int64) (ts Timespec) {
-	ts.Sec = int64(nsec / 1e9)
-	ts.Nsec = int64(nsec % 1e9)
-	return
-}
-
-func TimespecToNsec(ts Timespec) int64 {
-	return ts.Sec*1e9 + ts.Nsec
-}
-
-func TimevalToNsec(tv Timeval) int64 {
-	return tv.Sec*1e9 + tv.Usec*1000
-}
-
-// Wait4 waits for a process to change state.
-func Wait4(pid int, wstatus *WaitStatus, options int, rusage *Rusage) (wpid int, err error) {
-	var status _C_int
-	r, _, e := Syscall6(SYS_PROCESS_WAIT, uintptr(pid), uintptr(unsafe.Pointer(&status)), uintptr(options), uintptr(unsafe.Pointer(rusage)), 0, 0)
-	if e != 0 {
-		return -1, errnoErr(e)
-	}
-	if wstatus != nil {
-		*wstatus = WaitStatus(status)
-	}
-	return int(r), nil
-}
-
-// ReadDirent reads directory entries from fd into buf.
-func ReadDirent(fd int, buf []byte) (n int, err error) {
-	var _p0 unsafe.Pointer
-	if len(buf) > 0 {
-		_p0 = unsafe.Pointer(&buf[0])
-	}
-	r, _, e := Syscall(SYS_FILE_READDIR, uintptr(fd), uintptr(_p0), uintptr(len(buf)))
-	if e != 0 {
-		return 0, errnoErr(e)
-	}
-	return int(r), nil
-}
+// Dirent helpers
 
 func direntIno(buf []byte) (uint64, bool) {
 	return readInt(buf, unsafe.Offsetof(Dirent{}.Ino), unsafe.Sizeof(Dirent{}.Ino))
@@ -1032,159 +69,928 @@ func direntNamlen(buf []byte) (uint64, bool) {
 	return reclen - uint64(unsafe.Offsetof(Dirent{}.Name)), true
 }
 
-func Pread(fd int, p []byte, offset int64) (n int, err error) {
+// WaitStatus represents the status of a process
+type WaitStatus uint32
+
+func (w WaitStatus) Exited() bool       { return w&0x7f == 0 }
+func (w WaitStatus) Signaled() bool     { return w&0x7f != 0x7f && w&0x7f != 0 }
+func (w WaitStatus) Stopped() bool      { return w&0xff == 0x7f }
+func (w WaitStatus) Continued() bool    { return w == 0xffff }
+func (w WaitStatus) CoreDump() bool     { return w.Signaled() && w&0x80 != 0 }
+func (w WaitStatus) ExitStatus() int    { return int(w >> 8 & 0xff) }
+func (w WaitStatus) Signal() Signal     { return Signal(w & 0x7f) }
+func (w WaitStatus) StopSignal() Signal { return Signal(w >> 8 & 0xff) }
+func (w WaitStatus) TrapCause() int     { return 0 }
+
+// Wait4 waits for process state changes
+func Wait4(pid int, wstatus *WaitStatus, options int, rusage *Rusage) (wpid int, err error) {
+	var status _C_int
+	r1, _, e1 := Syscall6(SYS_WAIT4, uintptr(pid), uintptr(unsafe.Pointer(&status)), uintptr(options), uintptr(unsafe.Pointer(rusage)), 0, 0)
+	wpid = int(r1)
+	if wstatus != nil {
+		*wstatus = WaitStatus(status)
+	}
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// readlen reads into a buffer
+func readlen(fd int, buf *byte, nbuf int) (n int, err error) {
+	r0, _, e1 := Syscall(SYS_READ, uintptr(fd), uintptr(unsafe.Pointer(buf)), uintptr(nbuf))
+	n = int(r0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// forkAndExecFailureCleanup cleans up after fork/exec failure
+func forkAndExecFailureCleanup(attr *ProcAttr, sys *SysProcAttr) {
+	// Nothing to do for Freya.
+}
+
+// Getrlimit gets resource limits
+func Getrlimit(resource int, rlim *Rlimit) (err error) {
+	_, _, e1 := RawSyscall(SYS_GETRLIMIT, uintptr(resource), uintptr(unsafe.Pointer(rlim)), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// setrlimit sets resource limits (called by Setrlimit in rlimit.go)
+func setrlimit(resource int, rlim *Rlimit) (err error) {
+	_, _, e1 := RawSyscall(SYS_SETRLIMIT, uintptr(resource), uintptr(unsafe.Pointer(rlim)), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// fcntl wrapper
+func fcntl(fd int, cmd int, arg int) (val int, err error) {
+	r0, _, e1 := Syscall(SYS_FCNTL, uintptr(fd), uintptr(cmd), uintptr(arg))
+	val = int(r0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func fcntlPtr(fd int, cmd int, arg unsafe.Pointer) (val int, err error) {
+	r0, _, e1 := Syscall(SYS_FCNTL, uintptr(fd), uintptr(cmd), uintptr(arg))
+	val = int(r0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Low-level *at syscall wrappers that take int dirfd parameter
+
+func mkdirat(dirfd int, path string, mode uint32) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall(SYS_MKDIRAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(mode))
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func unlinkat(dirfd int, path string, flags int) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall(SYS_UNLINKAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(flags))
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func renameat(olddirfd int, oldpath string, newdirfd int, newpath string) (err error) {
+	p1, err := BytePtrFromString(oldpath)
+	if err != nil {
+		return err
+	}
+	p2, err := BytePtrFromString(newpath)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall6(SYS_RENAMEAT, uintptr(olddirfd), uintptr(unsafe.Pointer(p1)), uintptr(newdirfd), uintptr(unsafe.Pointer(p2)), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func linkat(olddirfd int, oldpath string, newdirfd int, newpath string, flags int) (err error) {
+	p1, err := BytePtrFromString(oldpath)
+	if err != nil {
+		return err
+	}
+	p2, err := BytePtrFromString(newpath)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall6(SYS_LINKAT, uintptr(olddirfd), uintptr(unsafe.Pointer(p1)), uintptr(newdirfd), uintptr(unsafe.Pointer(p2)), uintptr(flags), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func symlinkat(oldpath string, newdirfd int, newpath string) (err error) {
+	p1, err := BytePtrFromString(oldpath)
+	if err != nil {
+		return err
+	}
+	p2, err := BytePtrFromString(newpath)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall(SYS_SYMLINKAT, uintptr(unsafe.Pointer(p1)), uintptr(newdirfd), uintptr(unsafe.Pointer(p2)))
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func readlinkat(dirfd int, path string, buf []byte) (n int, err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
 	var _p0 unsafe.Pointer
-	if len(p) > 0 {
-		_p0 = unsafe.Pointer(&p[0])
+	if len(buf) > 0 {
+		_p0 = unsafe.Pointer(&buf[0])
 	}
-	r, _, e := Syscall6(SYS_FILE_PREAD, uintptr(fd), uintptr(_p0), uintptr(len(p)), uintptr(offset), 0, 0)
-	if e != 0 {
-		return 0, errnoErr(e)
+	r0, _, e1 := Syscall6(SYS_READLINKAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(_p0), uintptr(len(buf)), 0, 0)
+	n = int(r0)
+	if e1 != 0 {
+		err = errnoErr(e1)
 	}
-	return int(r), nil
+	return
 }
 
-func Pwrite(fd int, p []byte, offset int64) (n int, err error) {
+func fchmodat(dirfd int, path string, mode uint32, flags int) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall6(SYS_FCHMODAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(mode), uintptr(flags), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func fchownat(dirfd int, path string, uid int, gid int, flags int) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall6(SYS_FCHOWNAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(uid), uintptr(gid), uintptr(flags), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func faccessat(dirfd int, path string, mode uint32) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall(SYS_FACCESSAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(mode))
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Faccessat checks file accessibility with flags support
+func Faccessat(dirfd int, path string, mode uint32, flags int) (err error) {
+	if flags == 0 {
+		return faccessat(dirfd, path, mode)
+	}
+	// Freya doesn't support faccessat2 yet, so we ignore AT_EACCESS
+	// and AT_SYMLINK_NOFOLLOW for now
+	return faccessat(dirfd, path, mode)
+}
+
+func openat(dirfd int, path string, flags int, mode uint32) (fd int, err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	r0, _, e1 := Syscall6(SYS_OPENAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(flags), uintptr(mode), 0, 0)
+	fd = int(r0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func fstatat(dirfd int, path string, stat *Stat_t, flags int) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall6(SYS_FSTATAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(unsafe.Pointer(stat)), uintptr(flags), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Public file system functions
+
+// Fstat stats a file by fd
+func Fstat(fd int, stat *Stat_t) (err error) {
+	_, _, e1 := Syscall(SYS_FSTAT, uintptr(fd), uintptr(unsafe.Pointer(stat)), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Stat stats a file by path
+func Stat(path string, stat *Stat_t) (err error) {
+	return fstatat(_AT_FDCWD, path, stat, 0)
+}
+
+// Lstat stats a symlink
+func Lstat(path string, stat *Stat_t) (err error) {
+	return fstatat(_AT_FDCWD, path, stat, AT_SYMLINK_NOFOLLOW)
+}
+
+// Open opens a file
+func Open(path string, mode int, perm uint32) (fd int, err error) {
+	return openat(_AT_FDCWD, path, mode, perm)
+}
+
+// Pipe creates a pipe
+func Pipe(p []int) (err error) {
+	if len(p) != 2 {
+		return EINVAL
+	}
+	var pp [2]int32
+	_, _, e1 := RawSyscall(SYS_PIPE2, uintptr(unsafe.Pointer(&pp)), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	p[0] = int(pp[0])
+	p[1] = int(pp[1])
+	return
+}
+
+func Pipe2(p []int, flags int) (err error) {
+	if len(p) != 2 {
+		return EINVAL
+	}
+	var pp [2]int32
+	_, _, e1 := RawSyscall(SYS_PIPE2, uintptr(unsafe.Pointer(&pp)), uintptr(flags), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	p[0] = int(pp[0])
+	p[1] = int(pp[1])
+	return
+}
+
+// Dup duplicates a file descriptor
+func Dup(oldfd int) (fd int, err error) {
+	r1, _, e1 := Syscall(SYS_DUP, uintptr(oldfd), 0, 0)
+	fd = int(r1)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func Dup2(oldfd, newfd int) (err error) {
+	_, _, e1 := Syscall(SYS_DUP2, uintptr(oldfd), uintptr(newfd), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func Dup3(oldfd, newfd, flags int) (err error) {
+	_, _, e1 := Syscall(SYS_DUP3, uintptr(oldfd), uintptr(newfd), uintptr(flags))
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Mkdir creates a directory
+func Mkdir(path string, mode uint32) (err error) {
+	return mkdirat(_AT_FDCWD, path, mode)
+}
+
+// Rmdir removes a directory
+func Rmdir(path string) (err error) {
+	return unlinkat(_AT_FDCWD, path, _AT_REMOVEDIR)
+}
+
+// Unlink removes a file
+func Unlink(path string) (err error) {
+	return unlinkat(_AT_FDCWD, path, 0)
+}
+
+// Rename renames a file
+func Rename(from, to string) (err error) {
+	return renameat(_AT_FDCWD, from, _AT_FDCWD, to)
+}
+
+// Link creates a hard link
+func Link(oldpath, newpath string) (err error) {
+	return linkat(_AT_FDCWD, oldpath, _AT_FDCWD, newpath, 0)
+}
+
+// Symlink creates a symbolic link
+func Symlink(oldpath, newpath string) (err error) {
+	return symlinkat(oldpath, _AT_FDCWD, newpath)
+}
+
+// Readlink reads a symbolic link
+func Readlink(path string, buf []byte) (n int, err error) {
+	return readlinkat(_AT_FDCWD, path, buf)
+}
+
+// Chmod changes file mode
+func Chmod(path string, mode uint32) (err error) {
+	return fchmodat(_AT_FDCWD, path, mode, 0)
+}
+
+// Chown changes file owner
+func Chown(path string, uid, gid int) (err error) {
+	return fchownat(_AT_FDCWD, path, uid, gid, 0)
+}
+
+// Lchown changes symlink owner
+func Lchown(path string, uid, gid int) (err error) {
+	return fchownat(_AT_FDCWD, path, uid, gid, AT_SYMLINK_NOFOLLOW)
+}
+
+// Fchown changes file owner by fd
+func Fchown(fd int, uid, gid int) (err error) {
+	_, _, e1 := Syscall(SYS_FCHOWN, uintptr(fd), uintptr(uid), uintptr(gid))
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Fchmod changes file mode by fd
+func Fchmod(fd int, mode uint32) (err error) {
+	_, _, e1 := Syscall(SYS_FCHMOD, uintptr(fd), uintptr(mode), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Fchdir changes to dir by fd
+func Fchdir(fd int) (err error) {
+	_, _, e1 := Syscall(SYS_CHDIR, uintptr(fd), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Truncate truncates a file
+func Truncate(path string, length int64) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall(SYS_TRUNCATE, uintptr(unsafe.Pointer(p)), uintptr(length), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Ftruncate truncates a file by fd
+func Ftruncate(fd int, length int64) (err error) {
+	_, _, e1 := Syscall(SYS_FTRUNCATE, uintptr(fd), uintptr(length), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Fsync syncs a file
+func Fsync(fd int) (err error) {
+	_, _, e1 := Syscall(SYS_FSYNC, uintptr(fd), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Fdatasync is an alias for Fsync
+func Fdatasync(fd int) (err error) {
+	return Fsync(fd)
+}
+
+// Sync syncs all filesystems
+func Sync() {
+	Syscall(SYS_SYNC, 0, 0, 0)
+}
+
+// Chdir changes current directory
+func Chdir(path string) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall(SYS_CHDIR, uintptr(unsafe.Pointer(p)), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Getcwd gets current directory
+func Getcwd(buf []byte) (n int, err error) {
 	var _p0 unsafe.Pointer
-	if len(p) > 0 {
-		_p0 = unsafe.Pointer(&p[0])
+	if len(buf) > 0 {
+		_p0 = unsafe.Pointer(&buf[0])
 	}
-	r, _, e := Syscall6(SYS_FILE_PWRITE, uintptr(fd), uintptr(_p0), uintptr(len(p)), uintptr(offset), 0, 0)
-	if e != 0 {
-		return 0, errnoErr(e)
+	r0, _, e1 := Syscall(SYS_GETCWD, uintptr(_p0), uintptr(len(buf)), 0)
+	n = int(r0)
+	if e1 != 0 {
+		err = errnoErr(e1)
 	}
-	return int(r), nil
+	return
 }
 
-func Fcntl(fd int, cmd int, arg int) (val int, err error) {
-	r, _, e := Syscall(SYS_FILE_FCNTL, uintptr(fd), uintptr(cmd), uintptr(arg))
-	if e != 0 {
-		return -1, errnoErr(e)
+// ImplementsGetwd indicates whether Getwd is implemented
+const ImplementsGetwd = true
+
+// Getwd returns the current working directory
+func Getwd() (wd string, err error) {
+	var buf [PathMax]byte
+	n, err := Getcwd(buf[0:])
+	if err != nil {
+		return "", err
 	}
-	return int(r), nil
+	// Getcwd returns the number of bytes written to buf, including the NUL.
+	if n < 1 || n > len(buf) || buf[n-1] != 0 {
+		return "", EINVAL
+	}
+	return string(buf[:n-1]), nil
 }
 
-// mmap wraps the Freya memory map syscall.
+// utimensat changes file timestamps with nanosecond precision
+func utimensat(dirfd int, path string, times *[2]Timespec, flag int) (err error) {
+	p, err := BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
+	_, _, e1 := Syscall6(SYS_UTIMENSAT, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(unsafe.Pointer(times)), uintptr(flag), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// UtimesNano changes file timestamps with nanosecond precision
+func UtimesNano(path string, ts []Timespec) (err error) {
+	if len(ts) != 2 {
+		return EINVAL
+	}
+	return utimensat(_AT_FDCWD, path, (*[2]Timespec)(unsafe.Pointer(&ts[0])), 0)
+}
+
+// Umask sets file creation mask
+func Umask(mask int) (oldmask int) {
+	r1, _, _ := RawSyscall(SYS_UMASK, uintptr(mask), 0, 0)
+	return int(r1)
+}
+
+// Getdents reads directory entries
+func Getdents(fd int, buf []byte) (n int, err error) {
+	var _p0 unsafe.Pointer
+	if len(buf) > 0 {
+		_p0 = unsafe.Pointer(&buf[0])
+	}
+	r0, _, e1 := Syscall(SYS_GETDENTS64, uintptr(fd), uintptr(_p0), uintptr(len(buf)))
+	n = int(r0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// ReadDirent reads directory entries from a directory file descriptor
+func ReadDirent(fd int, buf []byte) (n int, err error) {
+	return Getdents(fd, buf)
+}
+
+// Uname gets system name
+func Uname(buf *Utsname) (err error) {
+	_, _, e1 := RawSyscall(SYS_UNAME, uintptr(unsafe.Pointer(buf)), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Getpgid gets process group
+func Getpgid(pid int) (pgid int, err error) {
+	r1, _, e1 := RawSyscall(SYS_GETPGID, uintptr(pid), 0, 0)
+	pgid = int(r1)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Getsid gets session ID
+func Getsid(pid int) (sid int, err error) {
+	r1, _, e1 := RawSyscall(SYS_GETSID, uintptr(pid), 0, 0)
+	sid = int(r1)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Access checks file access
+func Access(path string, mode uint32) (err error) {
+	return faccessat(_AT_FDCWD, path, mode)
+}
+
+// mmap is the low-level mmap implementation required by //go:linkname
 func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int64) (xaddr uintptr, err error) {
-	r, _, e := Syscall6(SYS_MEMORY_MAP, addr, length, uintptr(prot), uintptr(flags), uintptr(fd), uintptr(offset))
-	if e != 0 {
-		return 0, errnoErr(e)
+	r0, _, e1 := Syscall6(SYS_MMAP, addr, length, uintptr(prot), uintptr(flags), uintptr(fd), uintptr(offset))
+	xaddr = r0
+	if e1 != 0 {
+		err = errnoErr(e1)
 	}
-	return r, nil
+	return
 }
 
-// munmap wraps the Freya memory unmap syscall.
-func munmap(addr uintptr, length uintptr) error {
-	_, _, e := Syscall(SYS_MEMORY_UNMAP, addr, length, 0)
-	if e != 0 {
-		return errnoErr(e)
+// Mmap maps files or devices into memory
+func Mmap(fd int, offset int64, length, prot, flags int) (data []byte, err error) {
+	addr, err := mmap(0, uintptr(length), prot, flags, fd, offset)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return unsafe.Slice((*byte)(unsafe.Pointer(addr)), length), nil
 }
 
-var mapper = &mmapper{
-	active: make(map[*byte][]byte),
-	mmap:   mmap,
-	munmap: munmap,
-}
-
-func Mmap(fd int, offset int64, length int, prot int, flags int) (data []byte, err error) {
-	return mapper.Mmap(fd, offset, length, prot, flags)
-}
-
+// Munmap unmaps memory
 func Munmap(b []byte) (err error) {
-	return mapper.Munmap(b)
+	_, _, e1 := Syscall(SYS_MUNMAP, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
 }
 
+// Mprotect changes memory protection
 func Mprotect(b []byte, prot int) (err error) {
-	var _p0 unsafe.Pointer
-	if len(b) > 0 {
-		_p0 = unsafe.Pointer(&b[0])
+	_, _, e1 := Syscall(SYS_MPROTECT, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)), uintptr(prot))
+	if e1 != 0 {
+		err = errnoErr(e1)
 	}
-	_, _, e := Syscall(SYS_MEMORY_PROTECT, uintptr(_p0), uintptr(len(b)), uintptr(prot))
-	if e != 0 {
-		return errnoErr(e)
-	}
-	return nil
+	return
 }
 
-// Mmap manager, for use by operating system-specific implementations.
-type mmapper struct {
-	sync.Mutex
-	active map[*byte][]byte
-	mmap   func(addr, length uintptr, prot, flags, fd int, offset int64) (uintptr, error)
-	munmap func(addr uintptr, length uintptr) error
+// Gettimeofday gets current time
+func Gettimeofday(tv *Timeval) (err error) {
+	_, _, e1 := RawSyscall(SYS_GETTIMEOFDAY, uintptr(unsafe.Pointer(tv)), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
 }
 
-func (m *mmapper) Mmap(fd int, offset int64, length int, prot int, flags int) (data []byte, err error) {
-	if length <= 0 {
+// Nanosleep sleeps for a duration
+func Nanosleep(time *Timespec, leftover *Timespec) (err error) {
+	_, _, e1 := Syscall(SYS_NANOSLEEP, uintptr(unsafe.Pointer(time)), uintptr(unsafe.Pointer(leftover)), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Ioctl performs an ioctl
+func Ioctl(fd int, req uint, arg uintptr) (err error) {
+	_, _, e1 := Syscall(SYS_IOCTL, uintptr(fd), uintptr(req), arg)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// ioctlPtr is like Ioctl but passes a pointer
+func ioctlPtr(fd int, req uint, arg unsafe.Pointer) (err error) {
+	_, _, e1 := Syscall(SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(arg))
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Close closes a file descriptor
+func Close(fd int) (err error) {
+	_, _, e1 := Syscall(SYS_CLOSE, uintptr(fd), 0, 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+// Socket address conversion
+
+func anyToSockaddr(rsa *RawSockaddrAny) (Sockaddr, error) {
+	switch rsa.Addr.Family {
+	case AF_UNIX:
+		pp := (*RawSockaddrUnix)(unsafe.Pointer(rsa))
+		sa := new(SockaddrUnix)
+		if pp.Path[0] == 0 {
+			// "Abstract" Unix domain socket.
+			pp.Path[0] = '@'
+		}
+		n := 0
+		for n < len(pp.Path) && pp.Path[n] != 0 {
+			n++
+		}
+		sa.Name = string(unsafe.Slice((*byte)(unsafe.Pointer(&pp.Path[0])), n))
+		return sa, nil
+
+	case AF_INET:
+		pp := (*RawSockaddrInet4)(unsafe.Pointer(rsa))
+		sa := new(SockaddrInet4)
+		p := (*[2]byte)(unsafe.Pointer(&pp.Port))
+		sa.Port = int(p[0])<<8 + int(p[1])
+		sa.Addr = pp.Addr
+		return sa, nil
+
+	case AF_INET6:
+		pp := (*RawSockaddrInet6)(unsafe.Pointer(rsa))
+		sa := new(SockaddrInet6)
+		p := (*[2]byte)(unsafe.Pointer(&pp.Port))
+		sa.Port = int(p[0])<<8 + int(p[1])
+		sa.ZoneId = pp.Scope_id
+		sa.Addr = pp.Addr
+		return sa, nil
+	}
+	return nil, EAFNOSUPPORT
+}
+
+func Accept(fd int) (nfd int, sa Sockaddr, err error) {
+	return Accept4(fd, 0)
+}
+
+func Accept4(fd int, flags int) (nfd int, sa Sockaddr, err error) {
+	var rsa RawSockaddrAny
+	var len _Socklen = SizeofSockaddrAny
+	nfd, err = accept4(fd, &rsa, &len, flags)
+	if err != nil {
+		return
+	}
+	if len > SizeofSockaddrAny {
+		panic("RawSockaddrAny too small")
+	}
+	sa, err = anyToSockaddr(&rsa)
+	if err != nil {
+		Close(nfd)
+		nfd = 0
+	}
+	return
+}
+
+func recvmsgRaw(fd int, p, oob []byte, flags int, rsa *RawSockaddrAny) (n, oobn int, recvflags int, err error) {
+	var msg Msghdr
+	msg.Name = (*byte)(unsafe.Pointer(rsa))
+	msg.Namelen = uint32(SizeofSockaddrAny)
+	var iov Iovec
+	if len(p) > 0 {
+		iov.Base = &p[0]
+		iov.SetLen(len(p))
+	}
+	var dummy byte
+	if len(oob) > 0 {
+		if len(p) == 0 {
+			var sockType int
+			sockType, err = GetsockoptInt(fd, SOL_SOCKET, SO_TYPE)
+			if err != nil {
+				return
+			}
+			// receive at least one normal byte
+			if sockType != SOCK_DGRAM {
+				iov.Base = &dummy
+				iov.SetLen(1)
+			}
+		}
+		msg.Control = &oob[0]
+		msg.SetControllen(len(oob))
+	}
+	msg.Iov = &iov
+	msg.Iovlen = 1
+	if n, err = recvmsg(fd, &msg, flags); err != nil {
+		return
+	}
+	oobn = int(msg.Controllen)
+	recvflags = int(msg.Flags)
+	return
+}
+
+func sendmsgN(fd int, p, oob []byte, ptr unsafe.Pointer, salen _Socklen, flags int) (n int, err error) {
+	var msg Msghdr
+	msg.Name = (*byte)(ptr)
+	msg.Namelen = uint32(salen)
+	var iov Iovec
+	if len(p) > 0 {
+		iov.Base = &p[0]
+		iov.SetLen(len(p))
+	}
+	var dummy byte
+	if len(oob) > 0 {
+		if len(p) == 0 {
+			var sockType int
+			sockType, err = GetsockoptInt(fd, SOL_SOCKET, SO_TYPE)
+			if err != nil {
+				return 0, err
+			}
+			// send at least one normal byte
+			if sockType != SOCK_DGRAM {
+				iov.Base = &dummy
+				iov.SetLen(1)
+			}
+		}
+		msg.Control = &oob[0]
+		msg.SetControllen(len(oob))
+	}
+	msg.Iov = &iov
+	msg.Iovlen = 1
+	if n, err = sendmsg(fd, &msg, flags); err != nil {
+		return 0, err
+	}
+	if len(oob) > 0 && len(p) == 0 {
+		n = 0
+	}
+	return n, nil
+}
+
+// Sockaddr methods
+
+func (sa *SockaddrInet4) sockaddr() (unsafe.Pointer, _Socklen, error) {
+	if sa.Port < 0 || sa.Port > 0xFFFF {
+		return nil, 0, EINVAL
+	}
+	sa.raw.Family = AF_INET
+	p := (*[2]byte)(unsafe.Pointer(&sa.raw.Port))
+	p[0] = byte(sa.Port >> 8)
+	p[1] = byte(sa.Port)
+	sa.raw.Addr = sa.Addr
+	return unsafe.Pointer(&sa.raw), SizeofSockaddrInet4, nil
+}
+
+func (sa *SockaddrInet6) sockaddr() (unsafe.Pointer, _Socklen, error) {
+	if sa.Port < 0 || sa.Port > 0xFFFF {
+		return nil, 0, EINVAL
+	}
+	sa.raw.Family = AF_INET6
+	p := (*[2]byte)(unsafe.Pointer(&sa.raw.Port))
+	p[0] = byte(sa.Port >> 8)
+	p[1] = byte(sa.Port)
+	sa.raw.Flowinfo = 0
+	sa.raw.Scope_id = sa.ZoneId
+	sa.raw.Addr = sa.Addr
+	return unsafe.Pointer(&sa.raw), SizeofSockaddrInet6, nil
+}
+
+func (sa *SockaddrUnix) sockaddr() (unsafe.Pointer, _Socklen, error) {
+	name := sa.Name
+	n := len(name)
+	if n > len(sa.raw.Path) {
+		return nil, 0, EINVAL
+	}
+	isAbstract := n > 0 && (name[0] == '@' || name[0] == '\x00')
+	if n == len(sa.raw.Path) && !isAbstract {
+		return nil, 0, EINVAL
+	}
+	sa.raw.Family = AF_UNIX
+	for i := 0; i < n; i++ {
+		sa.raw.Path[i] = int8(name[i])
+	}
+	// Length is family + name (+ NUL if non-abstract).
+	sl := _Socklen(2)
+	if isAbstract {
+		sl += _Socklen(n)
+		sa.raw.Path[0] = 0
+	} else {
+		sl += _Socklen(n + 1)
+	}
+	return unsafe.Pointer(&sa.raw), sl, nil
+}
+
+// sendfile - Freya doesn't have a sendfile syscall, so implement using read/write
+func sendfile(outfd int, infd int, offset *int64, count int) (written int, err error) {
+	// If offset is provided, seek to it first
+	if offset != nil {
+		_, err = Seek(infd, *offset, 0) // SEEK_SET
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	// Use a buffer to copy data
+	buf := make([]byte, 32*1024) // 32KB buffer
+	remaining := count
+	for remaining > 0 {
+		toRead := len(buf)
+		if toRead > remaining {
+			toRead = remaining
+		}
+		n, readErr := read(infd, buf[:toRead])
+		if n > 0 {
+			nw, writeErr := write(outfd, buf[:n])
+			written += nw
+			if writeErr != nil {
+				err = writeErr
+				break
+			}
+			if nw < n {
+				err = EAGAIN
+				break
+			}
+		}
+		if readErr != nil {
+			if readErr != EAGAIN && readErr != EINTR {
+				err = readErr
+			}
+			break
+		}
+		if n == 0 {
+			// EOF
+			break
+		}
+		remaining -= n
+	}
+
+	// Update offset if provided
+	if offset != nil {
+		*offset += int64(written)
+	}
+	return
+}
+
+// Getgroups returns the supplementary group IDs of the calling process
+func Getgroups() (gids []int, err error) {
+	n, err := getgroups(0, nil)
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, nil
+	}
+
+	// Sanity check group count
+	if n < 0 || n > 1<<20 {
 		return nil, EINVAL
 	}
 
-	addr, errno := m.mmap(0, uintptr(length), prot, flags, fd, offset)
-	if errno != nil {
-		return nil, errno
+	a := make([]_Gid_t, n)
+	n, err = getgroups(n, &a[0])
+	if err != nil {
+		return nil, err
 	}
-
-	b := unsafe.Slice((*byte)(unsafe.Pointer(addr)), length)
-
-	p := &b[cap(b)-1]
-	m.Lock()
-	defer m.Unlock()
-	m.active[p] = b
-	return b, nil
+	gids = make([]int, n)
+	for i, v := range a[0:n] {
+		gids[i] = int(v)
+	}
+	return
 }
 
-func (m *mmapper) Munmap(data []byte) (err error) {
-	if len(data) == 0 || len(data) != cap(data) {
-		return EINVAL
+// Getrusage returns resource usage
+func Getrusage(who int, rusage *Rusage) (err error) {
+	_, _, e1 := RawSyscall(SYS_GETRUSAGE, uintptr(who), uintptr(unsafe.Pointer(rusage)), 0)
+	if e1 != 0 {
+		err = errnoErr(e1)
 	}
-
-	p := &data[cap(data)-1]
-	m.Lock()
-	defer m.Unlock()
-	b := m.active[p]
-	if b == nil || &b[0] != &data[0] {
-		return EINVAL
-	}
-
-	if errno := m.munmap(uintptr(unsafe.Pointer(&b[0])), uintptr(len(b))); errno != nil {
-		return errno
-	}
-	delete(m.active, p)
-	return nil
+	return
 }
 
-// Socket operations.
-
-func Socket(domain, typ, proto int) (fd int, err error) {
-	if domain == AF_INET6 && SocketDisableIPv6 {
-		return -1, EAFNOSUPPORT
-	}
-	r, _, e := Syscall(SYS_SOCKET_CREATE, uintptr(domain), uintptr(typ), uintptr(proto))
-	if e != 0 {
-		return -1, errnoErr(e)
-	}
-	return int(r), nil
-}
-
-// Utility functions to satisfy the runtime's needs.
-
-// Getrlimit is a stub for Freya.
-func Getrlimit(resource int, rlim *Rlimit) (err error) {
-	return ENOSYS
-}
-
-// Setrlimit is a stub for Freya.
-func Setrlimit(resource int, rlim *Rlimit) (err error) {
-	return ENOSYS
-}
-
-// Umask sets the file mode creation mask.
-func Umask(mask int) (oldmask int) {
-	// Freya may not support umask directly; return 0.
-	_ = mask
-	return 0
-}
-
-var _ = runtime.GOOS // ensure runtime is imported
+// RUSAGE constants
+const (
+	RUSAGE_SELF     = 0
+	RUSAGE_CHILDREN = -1
+	RUSAGE_THREAD   = 1
+)

@@ -7,5 +7,5 @@
 TEXT _rt0_amd64_freya(SB),NOSPLIT,$-8
 	JMP	_rt0_amd64(SB)
 
-TEXT main(SB),NOSPLIT,$-8
-	JMP	runtime·rt0_go(SB)
+TEXT _rt0_amd64_freya_lib(SB),NOSPLIT,$0
+	JMP	_rt0_amd64_lib(SB)

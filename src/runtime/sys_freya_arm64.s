@@ -39,6 +39,7 @@
 #define SYS_close		103
 #define SYS_seek		105
 #define SYS_stat		106
+#define SYS_fcntl		80
 
 TEXT runtime·exit(SB),NOSPLIT|NOFRAME,$0-4
 	MOVW	code+0(FP), R0
@@ -258,7 +259,8 @@ TEXT runtime·sigtramp(SB),NOSPLIT|TOPFRAME,$176
 TEXT runtime·cgoSigtramp(SB),NOSPLIT|NOFRAME,$0
 	B	runtime·sigtramp(SB)
 
-TEXT runtime·sysMmap(SB),NOSPLIT|NOFRAME,$0
+// func mmap(addr unsafe.Pointer, n uintptr, prot, flags, fd int32, off uint32) (p unsafe.Pointer, err int)
+TEXT runtime·mmap(SB),NOSPLIT|NOFRAME,$0
 	MOVD	addr+0(FP), R0
 	MOVD	n+8(FP), R1
 	MOVW	prot+16(FP), R2
@@ -279,7 +281,8 @@ ok:
 	MOVD	$0, err+40(FP)
 	RET
 
-TEXT runtime·sysMunmap(SB),NOSPLIT|NOFRAME,$0
+// func munmap(addr unsafe.Pointer, n uintptr)
+TEXT runtime·munmap(SB),NOSPLIT|NOFRAME,$0
 	MOVD	addr+0(FP), R0
 	MOVD	n+8(FP), R1
 	MOVD	$SYS_munmap, R8
@@ -288,6 +291,34 @@ TEXT runtime·sysMunmap(SB),NOSPLIT|NOFRAME,$0
 	BCC	cool
 	MOVD	R0, 0xf0(R0)
 cool:
+	RET
+
+// func madvise(addr unsafe.Pointer, n uintptr, flags int32) int32
+TEXT runtime·madvise(SB),NOSPLIT|NOFRAME,$0-28
+	// Freya doesn't have madvise; return 0
+	MOVW	$0, R0
+	MOVW	R0, ret+24(FP)
+	RET
+
+// func fcntl(fd, cmd, arg int32) (ret int32, errno int32)
+TEXT runtime·fcntl(SB),NOSPLIT|NOFRAME,$0-20
+	MOVW	fd+0(FP), R0
+	MOVW	cmd+4(FP), R1
+	MOVW	arg+8(FP), R2
+	MOVD	$SYS_fcntl, R8
+	SVC
+	CMN	$4095, R0
+	BCC	noerr
+	// Error case
+	MOVW	$-1, R1
+	MOVW	R1, ret+12(FP)
+	NEG	R0, R0
+	MOVW	R0, errno+16(FP)
+	RET
+noerr:
+	MOVW	R0, ret+12(FP)
+	MOVW	$0, R1
+	MOVW	R1, errno+16(FP)
 	RET
 
 // int64 futex(int32 *uaddr, int32 op, int32 val,
