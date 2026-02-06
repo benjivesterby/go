@@ -1942,11 +1942,6 @@ func mstart1() {
 		if gp.m.nextp != 0 {
 			acquirep(gp.m.nextp.ptr())
 			gp.m.nextp = 0
-		} else {
-			print("mstart1: skipping acquirep (nextp=nil, mstartfn=", gp.m.mstartfn, ")\n")
-			// Thread has no P - it should either be sysmon/templateThread (which loop forever)
-			// or something went wrong. Either way, don't crash - just go to schedule
-			// which will handle the no-P case.
 		}
 	}
 	schedule()

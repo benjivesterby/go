@@ -341,6 +341,11 @@ func send(c *hchan, sg *sudog, ep unsafe.Pointer, unlockf func(), skip int) {
 		sg.elem.set(nil)
 	}
 	gp := sg.g
+	if gp == nil {
+		print("send: sg.g is nil! sg=", unsafe.Pointer(sg), " c=", unsafe.Pointer(c), "\n")
+		print("send: sg.isSelect=", sg.isSelect, "\n")
+		throw("send on channel with nil goroutine in sudog")
+	}
 	unlockf()
 	gp.param = unsafe.Pointer(sg)
 	sg.success = true

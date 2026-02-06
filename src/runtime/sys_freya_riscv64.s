@@ -15,6 +15,7 @@
 // Freya syscall numbers
 #define SYS_exit		10
 #define SYS_getpid		13
+#define SYS_gettid		14
 #define SYS_thread_yield	15
 #define SYS_thread_exit		16
 #define SYS_thread_create	17
@@ -131,7 +132,7 @@ TEXT runtime·usleep(SB),NOSPLIT,$24-4
 
 // func gettid() uint32
 TEXT runtime·gettid(SB),NOSPLIT,$0-4
-	MOV	$SYS_getpid, A7
+	MOV	$SYS_gettid, A7
 	ECALL
 	MOVW	A0, ret+0(FP)
 	RET
@@ -329,13 +330,30 @@ child:
 	WORD	$0	// crash
 
 good:
-	// Initialize m->procid to tid
-	MOV	$SYS_getpid, A7
-	ECALL
-
+	// Load fn, g, m from stack BEFORE any syscall.
+	// On single-CPU systems, a timer interrupt during the ecall could
+	// preempt us and let the parent run, potentially modifying these
+	// stack slots (which are in shared address space via CLONE_VM).
+	// Loading into registers first ensures they survive via trap frame
+	// save/restore across the ecall.
 	MOV	-24(X2), T2	// fn
 	MOV	-16(X2), T1	// g
 	MOV	-8(X2), T0	// m
+
+	// Save fn/g/m in callee-saved registers that survive ecall.
+	// The child never returns to a caller, so clobbering s2-s4 is safe.
+	MOV	T2, S2		// fn
+	MOV	T1, S3		// g
+	MOV	T0, S4		// m
+
+	// Get thread ID for m->procid
+	MOV	$SYS_gettid, A7
+	ECALL
+
+	// Restore fn/g/m from saved registers (not from stack)
+	MOV	S2, T2		// fn
+	MOV	S3, T1		// g
+	MOV	S4, T0		// m
 
 	BEQ	ZERO, T0, nog
 	BEQ	ZERO, T1, nog

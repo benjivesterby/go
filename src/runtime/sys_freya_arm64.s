@@ -15,6 +15,7 @@
 // Freya syscall numbers
 #define SYS_exit		10
 #define SYS_getpid		13
+#define SYS_gettid		14
 #define SYS_thread_yield	15
 #define SYS_thread_exit		16
 #define SYS_thread_create	17
@@ -129,7 +130,7 @@ TEXT runtime·usleep(SB),NOSPLIT,$24-4
 	RET
 
 TEXT runtime·gettid(SB),NOSPLIT,$0-4
-	MOVD	$SYS_getpid, R8
+	MOVD	$SYS_gettid, R8
 	SVC
 	MOVW	R0, ret+0(FP)
 	RET

@@ -199,6 +199,7 @@ func minit() {
 	// procid. We need this for asynchronous preemption and it's
 	// useful in debuggers.
 	getg().m.procid = uint64(gettid())
+
 }
 
 // Called from dropm to undo the effect of an minit.
