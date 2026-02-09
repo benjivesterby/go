@@ -135,12 +135,12 @@ const (
 	SYS_RECVFROM      = 76   // SocketRecvFrom
 	SYS_SENDMSG       = 73   // SocketSend
 	SYS_RECVMSG       = 74   // SocketRecv
-	SYS_SHUTDOWN      = 77   // SocketClose
-	SYS_SETSOCKOPT    = 70   // SocketCreate (stub)
-	SYS_GETSOCKOPT    = 70   // SocketCreate (stub)
-	SYS_GETSOCKNAME   = 70   // SocketCreate (stub)
-	SYS_GETPEERNAME   = 70   // SocketCreate (stub)
-	SYS_SOCKETPAIR    = 70   // SocketCreate (stub)
+	SYS_SHUTDOWN      = 144  // SocketShutdown
+	SYS_SETSOCKOPT    = 139  // SocketSetSockOpt
+	SYS_GETSOCKOPT    = 140  // SocketGetSockOpt
+	SYS_GETSOCKNAME   = 141  // SocketGetSockName
+	SYS_GETPEERNAME   = 142  // SocketGetPeerName
+	SYS_SOCKETPAIR    = 143  // SocketPair
 
 	// System info
 	SYS_SYSINFO       = 99   // SysInfo

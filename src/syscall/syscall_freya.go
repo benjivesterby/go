@@ -994,3 +994,13 @@ const (
 	RUSAGE_CHILDREN = -1
 	RUSAGE_THREAD   = 1
 )
+
+// Getsockname returns the local address of a socket.
+func Getsockname(fd int) (sa Sockaddr, err error) {
+	var rsa RawSockaddrAny
+	var len _Socklen = SizeofSockaddrAny
+	if err = getsockname(fd, &rsa, &len); err != nil {
+		return
+	}
+	return anyToSockaddr(&rsa)
+}

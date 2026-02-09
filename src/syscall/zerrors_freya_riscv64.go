@@ -14,6 +14,7 @@ const (
 	EAGAIN          = Errno(0xb)
 	EALREADY        = Errno(0x72)
 	EBADF           = Errno(0x9)
+	EBADFD          = Errno(0x4d)
 	EBADMSG         = Errno(0x4a)
 	EBUSY           = Errno(0x10)
 	ECANCELED       = Errno(0x7d)
@@ -172,6 +173,22 @@ const (
 	SO_RCVTIMEO  = 0x14
 	SO_SNDTIMEO  = 0x15
 	SCM_RIGHTS   = 0x1
+	TCP_NODELAY      = 0x1
+	TCP_KEEPIDLE     = 0x4
+	TCP_KEEPINTVL    = 0x5
+	TCP_KEEPCNT      = 0x6
+	IPV6_V6ONLY      = 0x1a
+	IPV6_MULTICAST_IF   = 0x11
+	IPV6_MULTICAST_HOPS = 0x12
+	IPV6_MULTICAST_LOOP = 0x13
+	IPV6_JOIN_GROUP     = 0x14
+	IPV6_LEAVE_GROUP    = 0x15
+	IP_MULTICAST_IF     = 0x20
+	IP_MULTICAST_TTL    = 0x21
+	IP_MULTICAST_LOOP   = 0x22
+	IP_ADD_MEMBERSHIP   = 0x23
+	IP_DROP_MEMBERSHIP  = 0x24
+	SOMAXCONN           = 0x80
 )
 
 // File open flags

@@ -419,4 +419,16 @@ TEXT runtime·madvise(SB),NOSPLIT,$0-28
 	MOVW	ZERO, ret+24(FP)
 	RET
 
+#define SYS_poll 87
+
+// func freya_poll(pfds *pollfd, npfds int32, timeout int32) int32
+TEXT runtime·freya_poll(SB),NOSPLIT|NOFRAME,$0-20
+	MOV	pfds+0(FP), A0
+	MOVW	npfds+8(FP), A1
+	MOVW	timeout+12(FP), A2
+	MOV	$SYS_poll, A7
+	ECALL
+	MOVW	A0, ret+16(FP)
+	RET
+
 // sbrk0 is provided by stubs_nonlinux.go for non-linux targets.
